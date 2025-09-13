@@ -60,7 +60,8 @@ function startup () {
     redo: []
   }
 
-  state.world.test.recursiveRecompute(canvas.getContext('2d'))
+  state.world.test.name = 'test'
+  state.world.test.recompute(canvas.getContext('2d'))
 
   serialize.commit()
   resize()
@@ -81,8 +82,6 @@ export function draw () {
   ctx.fillStyle = canvas.backgroundPattern
   ctx.fillRect(...camera.position, canvas.width / camera.zoom, canvas.height / camera.zoom)
 
-  //mouse.draw(ctx)
-
   // draw origin
   const r = 32
   ctx.strokeStyle = 'gray'
@@ -102,6 +101,8 @@ export function draw () {
   }
   ctx.restore()
 
+  mouse.draw(ctx)
+
   ctx.restore()
 
   // draw hud
@@ -116,19 +117,34 @@ export function draw () {
   */
 }
 
+function getCtx () {
+  const canvas = document.querySelector('#mainCanvas')
+  return canvas.getContext('2d')
+}
+
 class CodeBlock {
   position = [0, 0]
   dimensions = [0, 0]
   content = null
   parent = null
+  name = 'unnamed'
   layer = 0
 
   constructor (content) {
     this.content = content
   }
 
-  recompute (ctx) {
-    this.recomputeLayer()
+  recompute () {
+    const recomputeLayer = (item) => {
+      item.layer = 0
+      if (Array.isArray(item.content)) {
+        item.layer = 1 + Math.max(0, ...item.content.map(recomputeLayer))
+      }
+      return item.layer
+    }
+    recomputeLayer(this)
+
+    const ctx = getCtx()
 
     // Array of other CodeBlocks
     if (Array.isArray(this.content)) {
@@ -138,7 +154,7 @@ class CodeBlock {
         let totalWidth = 32
         for (const item of this.content) {
           item.parent = this
-          item.recompute(ctx)
+          item.recompute()
           item.position[1] = totalHeight
           totalHeight += item.dimensions[1] + padding
           totalWidth = 48
@@ -153,12 +169,15 @@ class CodeBlock {
         let totalHeight = 32
         for (const item of this.content) {
           item.parent = this
-          item.recompute(ctx)
+          item.recompute()
           item.position[0] = totalWidth
           totalWidth += item.dimensions[0] + padding
           totalHeight = Math.max(totalHeight, item.dimensions[1] + 8)
         }
         this.dimensions = [totalWidth, totalHeight]
+        if (this.content.length === 0) {
+          this.dimensions[0] = 32
+        }
         for (const item of this.content) {
           item.position[1] = (this.dimensions[1] - item.dimensions[1]) / 2
         }
@@ -178,21 +197,14 @@ class CodeBlock {
     return this.dimensions
   }
 
-  recomputeLayer () {
-    this.layer = 0
-    if (Array.isArray(this.content)) {
-      this.layer = 1 + Math.max(...this.content.map(item => item.recomputeLayer()))
+  recomputeFromTop () {
+    let nextParent = this.parent
+    let lastParent = this.parent
+    while (nextParent) {
+      lastParent = nextParent
+      nextParent = nextParent.parent
     }
-    return this.layer
-  }
-
-  recursiveRecompute (ctx) {
-    if (Array.isArray(this.content)) {
-      for (const item of this.content) {
-        item.recursiveRecompute(ctx)
-      }
-    }
-    this.recompute(ctx)
+    lastParent.recompute()
   }
 
   getWorldPosition () {
@@ -216,9 +228,34 @@ class CodeBlock {
     )
   }
 
-  draw (ctx) {
+  remove () {
+    if (this.parent) {
+      this.parent.content = this.parent.content.filter(x => x !== this)
+      this.recomputeFromTop()
+      this.parent = null
+    } else {
+      delete state.world[this.name]
+    }
+  }
+
+  draw () {
+    const ctx = getCtx()
+
+    if (!this.parent) {
+      ctx.save()
+      ctx.translate(...this.position)
+      ctx.translate(0, -6)
+      ctx.font = '24px Arial'
+      ctx.fillStyle = 'black'
+      ctx.fillText(this.name, 0, 0)
+      ctx.restore()
+    }
+
     if (Array.isArray(this.content)) {
       ctx.save()
+      if (!this.parent) {
+        ctx.translate(...this.position)
+      }
       ctx.fillStyle = ['black', 'blue', 'purple', 'red', 'yellow', 'green'][this.layer]
       ctx.beginPath()
       ctx.roundRect(0, 0, this.dimensions[0], this.dimensions[1], 5)
@@ -227,13 +264,13 @@ class CodeBlock {
         ctx.strokeStyle = 'white'
         ctx.stroke()
       }
-      ctx.restore()
       for (const item of this.content) {
         ctx.save()
         ctx.translate(item.position[0], item.position[1])
-        item.draw(ctx)
+        item.draw()
         ctx.restore()
       }
+      ctx.restore()
       return
     }
 
@@ -245,6 +282,9 @@ class CodeBlock {
     ctx.fillStyle = 'black'
     ctx.globalAlpha = 0.5
     ctx.strokeStyle = 'white'
+    if (!this.parent) {
+      ctx.translate(...this.position)
+    }
     ctx.beginPath()
     ctx.roundRect(x - this.dimensions[0] / 2 - padding, 0, this.dimensions[0] + padding * 2,  32, 5)
     ctx.fill()

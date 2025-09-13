@@ -1,4 +1,4 @@
-import { state } from './main.js'
+import { state, draw } from './main.js'
 import * as vec2 from './vector2.js'
 import * as itx from './interface.js'
 import * as serialize from './serialize.js'
@@ -14,6 +14,7 @@ export default class Mouse {
   rightClick = false
   middleButton = false
   hoveredCodeBlock = undefined
+  heldCodeBlock = undefined
 
   update (event) {
     this.screenPosition[0] = event.clientX
@@ -32,6 +33,12 @@ export default class Mouse {
         minLayer = codeBlock.layer
         this.hoveredCodeBlock = codeBlock
       }
+    }
+
+    if (this.leftClick && this.hoveredCodeBlock) {
+      this.heldCodeBlock = this.hoveredCodeBlock
+      this.hoveredCodeBlock.remove()
+      this.hoveredCodeBlock = undefined
     }
 
     this.leftClick = false
@@ -85,6 +92,25 @@ export default class Mouse {
   */
 
   draw (ctx) {
+    if (this.heldCodeBlock) {
+      if (this.leftButton) {
+        this.heldCodeBlock.position[0] = this.position[0]
+        this.heldCodeBlock.position[1] = this.position[1]
+        this.heldCodeBlock.draw()
+      } else {
+        let i = 1
+        let name = this.heldCodeBlock.name
+        while (name in state.world) {
+          name = `${this.heldCodeBlock.name}_${i}`
+          i += 1
+        }
+        this.heldCodeBlock.name = name
+        state.world[name] = this.heldCodeBlock
+        this.heldCodeBlock = undefined
+        requestAnimationFrame(draw)
+      }
+    }
+
     /*
     if (state.mode === 'thing') {
       if (this.tilePositionFloat && this.thingSelection.length === 0 && !this.getSelectableThing()) {
