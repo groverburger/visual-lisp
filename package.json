@@ -1,0 +1,10 @@
+{
+  "name": "Lisp Visualization",
+  "main": "index.html",
+  "type": "module",
+  "window": {
+    "position": "center",
+    "width": 1280,
+    "height": 768
+  }
+}
