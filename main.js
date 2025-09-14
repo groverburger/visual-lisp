@@ -11,15 +11,17 @@ function startup () {
   const canvas = document.querySelector('#mainCanvas')
   canvas.backgroundPattern = (() => {
     const patternCanvas = document.createElement('canvas')
-    const size = 256
+    const size = 512
     patternCanvas.width = size
     patternCanvas.height = size
     const patternCtx = patternCanvas.getContext('2d')
     //patternCtx.fillStyle = 'black'
-    patternCtx.fillStyle = 'rgb(220, 220, 220)'
+    //patternCtx.fillStyle = 'rgb(220, 220, 220)'
+    patternCtx.fillStyle = '#8888BB'
     patternCtx.fillRect(0, 0, size, size)
     //patternCtx.fillStyle = 'rgb(10, 10, 10)'
-    patternCtx.fillStyle = 'rgb(240, 240, 240)'
+    //patternCtx.fillStyle = 'rgb(240, 240, 240)'
+    patternCtx.fillStyle = '#7E7EBA'
     patternCtx.fillRect(0, 0, size / 2, size / 2)
     patternCtx.fillRect(size / 2, size / 2, size / 2, size / 2)
     const ctx = canvas.getContext('2d')
@@ -52,6 +54,24 @@ function startup () {
         ]),
         new CodeBlock('layer 1 a'),
         new CodeBlock('layer 1 b')
+      ]),
+      'fibb': new CodeBlock([
+        new CodeBlock('define'),
+        new CodeBlock('fib'),
+        new CodeBlock([new CodeBlock('n')]),
+        new CodeBlock([
+          new CodeBlock('cond'),
+          new CodeBlock([new CodeBlock([new CodeBlock('='), new CodeBlock('n'), new CodeBlock(0)]), new CodeBlock(0)]),
+          new CodeBlock([new CodeBlock([new CodeBlock('='), new CodeBlock('n'), new CodeBlock(1)]), new CodeBlock(1)]),
+          new CodeBlock([
+            new CodeBlock('else'),
+            new CodeBlock([
+              new CodeBlock('+'),
+              new CodeBlock([new CodeBlock('fib'), new CodeBlock([new CodeBlock('-'), new CodeBlock('n'), new CodeBlock(1)])]),
+              new CodeBlock([new CodeBlock('fib'), new CodeBlock([new CodeBlock('-'), new CodeBlock('n'), new CodeBlock(2)])])
+            ])
+          ])
+        ])
       ])
     },
     worldMetadata: new WeakMap(),
@@ -62,6 +82,8 @@ function startup () {
 
   state.world.test.name = 'test'
   state.world.test.recompute(canvas.getContext('2d'))
+  state.world.fibb.name = 'fibb'
+  state.world.fibb.recompute(canvas.getContext('2d'))
 
   serialize.commit()
   resize()
@@ -84,7 +106,7 @@ export function draw () {
 
   // draw origin
   const r = 32
-  ctx.strokeStyle = 'gray'
+  ctx.strokeStyle = 'white'
   ctx.lineWidth = 2
   ctx.beginPath()
   ctx.moveTo(-r, 0)
@@ -127,52 +149,70 @@ class CodeBlock {
   dimensions = [0, 0]
   content = null
   parent = null
-  name = 'unnamed'
+  name = ''
   layer = 0
+  layerFromRoot = 0
+  splices = []
+  isVertical = false
 
   constructor (content) {
     this.content = content
   }
 
   recompute () {
-    const recomputeLayer = (item) => {
+    const recomputeLayer = (item, layerFromRoot) => {
       item.layer = 0
+      item.layerFromRoot = layerFromRoot
       if (Array.isArray(item.content)) {
-        item.layer = 1 + Math.max(0, ...item.content.map(recomputeLayer))
+        item.layer = 1 + Math.max(0, ...item.content.map(x => recomputeLayer(x, layerFromRoot + 1)))
       }
       return item.layer
     }
-    recomputeLayer(this)
+    if (!this.parent) {
+      recomputeLayer(this, 0)
+    }
 
     const ctx = getCtx()
 
     // Array of other CodeBlocks
     if (Array.isArray(this.content)) {
-      if (this.layer > 2) {
-        const padding = 8
+      this.splices = []
+      if (this.layer >= 3) {
+        this.isVertical = true
+      }
+      if (this.layer <= 1) {
+        this.isVertical = false
+      }
+      if (this.isVertical) {
+        this.isVertical = true
+        const padding = 12
         let totalHeight = padding
-        let totalWidth = 32
+        let totalWidth = 48
+        this.splices.push(padding / 2)
         for (const item of this.content) {
           item.parent = this
           item.recompute()
           item.position[1] = totalHeight
           totalHeight += item.dimensions[1] + padding
-          totalWidth = 48
+          this.splices.push(totalHeight - padding / 2)
         }
         this.dimensions = [totalWidth, totalHeight]
         for (const item of this.content) {
           item.position[0] = padding
         }
       } else {
-        const padding = 8
+        this.isVertical = false
+        const padding = 12
         let totalWidth = padding
         let totalHeight = 32
+        this.splices.push(padding / 2)
         for (const item of this.content) {
           item.parent = this
           item.recompute()
           item.position[0] = totalWidth
           totalWidth += item.dimensions[0] + padding
           totalHeight = Math.max(totalHeight, item.dimensions[1] + 8)
+          this.splices.push(totalWidth - padding / 2)
         }
         this.dimensions = [totalWidth, totalHeight]
         if (this.content.length === 0) {
@@ -241,46 +281,98 @@ class CodeBlock {
   draw () {
     const ctx = getCtx()
 
-    if (!this.parent) {
+    // Draw name tag
+    if (!this.parent && this.name !== '') {
       ctx.save()
       ctx.translate(...this.position)
-      ctx.translate(0, -6)
+      ctx.translate(-8, -4)
+      ctx.rotate(-0.15)
+      if (state.mouse.heldCodeBlock === this) {
+        ctx.globalAlpha = 0.8
+      }
       ctx.font = '24px Arial'
-      ctx.fillStyle = 'black'
+      ctx.fillStyle = '#FFA500'
+      const { width } = ctx.measureText(this.name)
+      //ctx.translate((width + padding * 2) / -2, 0)
+      ctx.beginPath()
+      const padding = 6
+      ctx.roundRect(0 - padding, -24, width + padding * 2, 24 + padding, 5)
+      ctx.fill()
+      ctx.fillStyle = 'white'
       ctx.fillText(this.name, 0, 0)
       ctx.restore()
     }
 
+    // Draw list
     if (Array.isArray(this.content)) {
       ctx.save()
       if (!this.parent) {
         ctx.translate(...this.position)
       }
-      ctx.fillStyle = ['black', 'blue', 'purple', 'red', 'yellow', 'green'][this.layer]
+      ctx.beginPath()
+      ctx.roundRect(-2, 2, this.dimensions[0], this.dimensions[1], 5)
+      ctx.fillStyle = 'black'
+      ctx.fill()
+      ctx.fillStyle = [
+        '#33CC70',
+        '#33CCCC',
+        '#3370CC',
+        '#5133CC',
+        '#AD33CC'
+      ][this.layerFromRoot % 5]
       ctx.beginPath()
       ctx.roundRect(0, 0, this.dimensions[0], this.dimensions[1], 5)
       ctx.fill()
-      if (state.mouse.hoveredCodeBlock === this) {
+
+      if (state.mouse.hoveredCodeBlock === this && !state.mouse.heldCodeBlock) {
         ctx.strokeStyle = 'white'
         ctx.stroke()
       }
+
       for (const item of this.content) {
         ctx.save()
         ctx.translate(item.position[0], item.position[1])
         item.draw()
         ctx.restore()
       }
+
+      // Draw splice lines for slotting in held code block
+      if (state.mouse.hoveredListBlock === this && state.mouse.heldCodeBlock && state.mouse.heldCodeBlock !== this) {
+        for (const splice of this.splices) {
+          if (this.isVertical) {
+            ctx.save()
+            ctx.translate(0, splice)
+            ctx.beginPath()
+            ctx.moveTo(4, 0)
+            ctx.lineTo(this.dimensions[0] - 4, 0)
+            ctx.strokeStyle = 'white'
+            ctx.stroke()
+            ctx.restore()
+          } else {
+            ctx.save()
+            ctx.translate(splice, 0)
+            ctx.beginPath()
+            ctx.moveTo(0, 4)
+            ctx.lineTo(0, this.dimensions[1] - 4)
+            ctx.strokeStyle = 'white'
+            ctx.stroke()
+            ctx.restore()
+          }
+        }
+      }
+
       ctx.restore()
       return
     }
 
+    // Draw literal
     ctx.save()
     ctx.font = '24px Arial'
     const str = `${this.content}`
     const padding = 0
     const x = this.dimensions[0] / 2
     ctx.fillStyle = 'black'
-    ctx.globalAlpha = 0.5
+    ctx.globalAlpha = 0.65
     ctx.strokeStyle = 'white'
     if (!this.parent) {
       ctx.translate(...this.position)
@@ -289,7 +381,7 @@ class CodeBlock {
     ctx.roundRect(x - this.dimensions[0] / 2 - padding, 0, this.dimensions[0] + padding * 2,  32, 5)
     ctx.fill()
     ctx.globalAlpha = 1
-    if (state.mouse.hoveredCodeBlock === this) {
+    if (state.mouse.hoveredCodeBlock === this && !state.mouse.heldCodeBlock) {
       ctx.strokeStyle = 'white'
       ctx.stroke()
     }

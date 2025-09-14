@@ -14,7 +14,9 @@ export default class Mouse {
   rightClick = false
   middleButton = false
   hoveredCodeBlock = undefined
+  hoveredListBlock = undefined
   heldCodeBlock = undefined
+  heldCodeBlockOffset = [0, 0]
 
   update (event) {
     this.screenPosition[0] = event.clientX
@@ -26,17 +28,27 @@ export default class Mouse {
     this.lastPosition = [...this.position]
     this.position = this.getWorldPosition()
 
-    let minLayer = Infinity
     this.hoveredCodeBlock = undefined
+    this.hoveredListBlock = undefined
     for (const codeBlock of getAllCodeBlocks()) {
-      if (codeBlock.isHovered() && codeBlock.layer < minLayer) {
-        minLayer = codeBlock.layer
+      let codeBlockMinLayer = Infinity
+      let listBlockMinLayer = Infinity
+      if (!codeBlock.isHovered()) { continue }
+      if (codeBlock.layer < codeBlockMinLayer) {
+        codeBlockMinLayer = codeBlock.layer
         this.hoveredCodeBlock = codeBlock
+      }
+      if (codeBlock.layer < listBlockMinLayer && Array.isArray(codeBlock.content)) {
+        listBlockMinLayer = codeBlock.layer
+        this.hoveredListBlock = codeBlock
       }
     }
 
     if (this.leftClick && this.hoveredCodeBlock) {
       this.heldCodeBlock = this.hoveredCodeBlock
+      const heldCodeBlockWorldPosition = this.heldCodeBlock.getWorldPosition()
+      this.heldCodeBlockOffset[0] = this.position[0] - heldCodeBlockWorldPosition[0]
+      this.heldCodeBlockOffset[1] = this.position[1] - heldCodeBlockWorldPosition[1]
       this.hoveredCodeBlock.remove()
       this.hoveredCodeBlock = undefined
     }
@@ -45,69 +57,60 @@ export default class Mouse {
     this.rightClick = false
   }
 
-  /*
-  getSelectableThing () {
-    for (const thing of this.getLayer().things) {
-      if (vec2.distance(thing.position, this.tilePositionFloat) <= 0.6) {
-        return thing
+  dropHeldCodeBlock () {
+    requestAnimationFrame(draw)
+
+    if (Array.isArray(this.hoveredListBlock?.content)) {
+      let closestSplice = 0
+      let closestSpliceDistance = Infinity
+      const codeBlockWorldPosition = this.hoveredListBlock.getWorldPosition()
+      for (const [i, spliceCoord] of this.hoveredListBlock.splices.entries()) {
+        const splicePosition = (
+          this.hoveredListBlock.isVertical
+          ? spliceCoord + codeBlockWorldPosition[1]
+          : spliceCoord + codeBlockWorldPosition[0]
+        )
+        const mousePosition = (
+          this.hoveredListBlock.isVertical
+          ? this.position[1]
+          : this.position[0]
+        )
+        const dist = Math.abs(splicePosition - mousePosition)
+        if (dist < closestSpliceDistance) {
+          closestSplice = i
+          closestSpliceDistance = dist
+        }
       }
+      this.hoveredListBlock.content.splice(closestSplice, 0, this.heldCodeBlock)
+      this.heldCodeBlock.parent = this.hoveredListBlock
+      this.heldCodeBlock.recomputeFromTop()
+      this.heldCodeBlock = undefined
+      return
     }
-  }
 
-  onModeChange () {
-    if (state.mode === 'map') {
-      this.deselectAllThings()
+    let i = 1
+    let name = this.heldCodeBlock.name
+    if (name === '') {
+      name = 'unnamed'
     }
-  }
-
-  deselectAllThings () {
-    const didSomething = Boolean(this.thingSelection.length)
-    for (const thing of this.thingSelection) {
-      thing.onDeselected()
+    let originalName = name
+    while (name in state.world) {
+      name = `${originalName}_${i}`
+      i += 1
     }
-    this.thingSelection = []
-    return didSomething
+    this.heldCodeBlock.name = name
+    state.world[name] = this.heldCodeBlock
+    this.heldCodeBlock = undefined
   }
-
-  drawBrush (ctx, color, dx = 0, dy = 0) {
-    const r = this.radius
-    for (let x = -r; x <= r; x += 1) {
-      for (let y = -r; y <= r; y += 1) {
-        if (x * x + y * y >= r * r) { continue }
-        const mx = (Math.floor(this.position[0] / 16) + x) * 16
-        const my = (Math.floor(this.position[1] / 16) + y) * 16
-        ctx.save()
-        ctx.translate(mx + dx, my + dy)
-        ctx.fillStyle = color
-        ctx.fillRect(0, 0, 16, 16)
-        ctx.font = '8px Arial'
-        ctx.fillStyle = 'black'
-        ctx.fillText(String(this.brush), 2 + 1, 14 + 1)
-        ctx.fillStyle = 'lightGray'
-        ctx.fillText(String(this.brush), 2, 14)
-        ctx.restore()
-      }
-    }
-  }
-  */
 
   draw (ctx) {
     if (this.heldCodeBlock) {
       if (this.leftButton) {
-        this.heldCodeBlock.position[0] = this.position[0]
-        this.heldCodeBlock.position[1] = this.position[1]
+        this.heldCodeBlock.position[0] = this.position[0] - this.heldCodeBlockOffset[0]
+        this.heldCodeBlock.position[1] = this.position[1] - this.heldCodeBlockOffset[1]
         this.heldCodeBlock.draw()
       } else {
-        let i = 1
-        let name = this.heldCodeBlock.name
-        while (name in state.world) {
-          name = `${this.heldCodeBlock.name}_${i}`
-          i += 1
-        }
-        this.heldCodeBlock.name = name
-        state.world[name] = this.heldCodeBlock
-        this.heldCodeBlock = undefined
-        requestAnimationFrame(draw)
+        this.dropHeldCodeBlock()
       }
     }
 
