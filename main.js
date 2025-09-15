@@ -265,6 +265,9 @@ class CodeBlock {
     // This is a literal
     ctx.save()
     ctx.font = '24px Arial'
+    if (typeof this.content === 'number') {
+      ctx.font = 'bold 24px Courier New'
+    }
     const str = `${this.content}`
     const { width } = ctx.measureText(str)
     const padding = 4
@@ -447,6 +450,10 @@ class CodeBlock {
       ctx.stroke()
     }
     ctx.fillStyle = 'white'
+    if (typeof this.content === 'number') {
+      ctx.fillStyle = 'cyan'
+      ctx.font = 'bold 24px Courier New'
+    }
     ctx.textAlign = 'center'
     ctx.fillText(str, x, 24)
     ctx.restore()
@@ -548,6 +555,29 @@ window.addEventListener('keypress', e => {
 })
 
 window.addEventListener('keydown', e => {
+  if (state.mouse.editingCodeBlock) {
+    const key = e.key
+    let textBuffer = state.mouse.editingCodeBlock.content.toString()
+    if (e.ctrlKey) {
+      textBuffer = ''
+    }
+    if (key === 'Backspace') {
+      textBuffer = textBuffer.slice(0, -1)
+    } else if (key === 'Enter') {
+      textBuffer += '\n'
+    } else if (key.length === 1) {
+      textBuffer += key
+    }
+    state.mouse.editingCodeBlock.content = textBuffer
+    const parsedNumber = Number(textBuffer)
+    if (textBuffer !== '' && !Number.isNaN(parsedNumber)) {
+      state.mouse.editingCodeBlock.content = parsedNumber
+    }
+    state.mouse.editingCodeBlock.recomputeFromTop()
+    requestAnimationFrame(draw)
+    e.preventDefault()
+  }
+
   if (e.code === 'KeyZ' && (navigator.platform.match('Mac') ? e.metaKey : e.ctrlKey)) {
     e.preventDefault()
     if (e.shiftKey) {

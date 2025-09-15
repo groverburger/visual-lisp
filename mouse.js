@@ -21,6 +21,7 @@ export default class Mouse {
   heldCodeBlockOffset = [0, 0]
   heldCodeBlockPlaceholderIndex = -1
   lastHeldCodeBlockPlaceholderIndex = -1
+  editingCodeBlock = undefined
 
   update (event) {
     this.screenPosition[0] = event.clientX
@@ -56,20 +57,43 @@ export default class Mouse {
       this.heldCodeBlockOffset[1] = this.position[1] - heldCodeBlockWorldPosition[1]
       this.hoveredCodeBlock.remove()
       this.hoveredCodeBlock = undefined
+
+      if (this.heldCodeBlock.name in lips.env.__env__) {
+        delete lips.env.__env__[this.heldCodeBlock.name]
+      }
     }
 
-    if (this.rightClick && this.hoveredCodeBlock) {
+    if (this.rightClick && this.hoveredCodeBlock && Array.isArray(this.hoveredCodeBlock.content)) {
       const code = this.hoveredCodeBlock.stringify()
+      try {
+        lips.exec(code).then(x => {
+          console.log(x.toString())
+        })
+      } catch (e) {
+        console.error(e)
+      }
       console.log(code)
-      console.log(lips.exec(code))
     }
 
+    if (this.rightClick) {
+      this.editingCodeBlock = (
+        !Array.isArray(this.hoveredCodeBlock?.content)
+        ? this.hoveredCodeBlock
+        : undefined
+      )
+    }
+    if (this.leftClick) {
+      this.editingCodeBlock = undefined
+    }
+
+    /*
     if (
       this.lastHoveredListBlock &&
       this.lastHoveredListBlock !== this.hoveredListBlock
     ) {
       this.lastHoveredListBlock.recomputeFromTop()
     }
+    */
 
     this.lastHeldCodeBlockPlaceholderIndex = this.heldCodeBlockPlaceholderIndex
     this.heldCodeBlockPlaceholderIndex = -1
@@ -78,6 +102,7 @@ export default class Mouse {
         let closestSplice = 0
         let closestSpliceDistance = Infinity
         const codeBlockWorldPosition = this.hoveredListBlock.getWorldPosition()
+        const heldBlockWorldPosition = this.heldCodeBlock.getWorldPosition()
         for (const [i, spliceCoord] of this.hoveredListBlock.splices.entries()) {
           const splicePosition = (
             this.hoveredListBlock.isVertical
@@ -131,12 +156,21 @@ export default class Mouse {
       name = 'unnamed'
     }
     let originalName = name
-    while (name in state.world) {
+    while ((name in state.world) || (name in lips.env.__env__)) {
       name = `${originalName}_${i}`
       i += 1
     }
     this.heldCodeBlock.name = name
     state.world[name] = this.heldCodeBlock
+    const code = `(define ${name} ${this.heldCodeBlock.stringify()})`
+    try {
+      lips.exec(code).then(() => {
+        console.log(lips.env.__env__)
+      })
+    } catch (e) {
+      console.log(`Tried to drop ${name}`)
+      console.error(e)
+    }
     this.heldCodeBlock = undefined
   }
 
