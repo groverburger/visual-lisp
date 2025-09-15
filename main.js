@@ -187,14 +187,32 @@ class CodeBlock {
         this.isVertical = true
         const padding = 12
         let totalHeight = padding
+        let totalSpliceHeight = totalHeight
         let totalWidth = 48
         this.splices.push(padding / 2)
-        for (const item of this.content) {
+        for (const [i, item] of this.content.entries()) {
           item.parent = this
           item.recompute()
+          totalHeight += (
+            i === state.mouse.heldCodeBlockPlaceholderIndex &&
+            false &&
+            this === state.mouse.hoveredListBlock &&
+            this !== state.mouse.heldCodeBlock
+            ? state.mouse.heldCodeBlock.dimensions[1] + padding
+            : 0
+          )
           item.position[1] = totalHeight
           totalHeight += item.dimensions[1] + padding
-          this.splices.push(totalHeight - padding / 2)
+          totalSpliceHeight += item.dimensions[1] + padding
+          this.splices.push(totalSpliceHeight - padding / 2)
+        }
+        if (
+          false &&
+          this === state.mouse.hoveredListBlock &&
+          state.mouse.heldCodeBlockPlaceholderIndex === this.content.length &&
+          this !== state.mouse.heldCodeBlock
+        ) {
+          totalHeight += state.mouse.heldCodeBlock.dimensions[1] + padding
         }
         this.dimensions = [totalWidth, totalHeight]
         for (const item of this.content) {
@@ -204,15 +222,33 @@ class CodeBlock {
         this.isVertical = false
         const padding = 12
         let totalWidth = padding
+        let totalSpliceWidth = padding
         let totalHeight = 32
         this.splices.push(padding / 2)
-        for (const item of this.content) {
+        for (const [i, item] of this.content.entries()) {
           item.parent = this
           item.recompute()
+          totalWidth += (
+            false &&
+            i === state.mouse.heldCodeBlockPlaceholderIndex &&
+            this === state.mouse.hoveredListBlock &&
+            this !== state.mouse.heldCodeBlock
+            ? state.mouse.heldCodeBlock.dimensions[0] + padding
+            : 0
+          )
           item.position[0] = totalWidth
           totalWidth += item.dimensions[0] + padding
+          totalSpliceWidth += item.dimensions[0] + padding
           totalHeight = Math.max(totalHeight, item.dimensions[1] + 8)
-          this.splices.push(totalWidth - padding / 2)
+          this.splices.push(totalSpliceWidth - padding / 2)
+        }
+        if (
+          false &&
+          this === state.mouse.hoveredListBlock &&
+          state.mouse.heldCodeBlockPlaceholderIndex === this.content.length &&
+          this !== state.mouse.heldCodeBlock
+        ) {
+          totalWidth += state.mouse.heldCodeBlock.dimensions[0] + padding
         }
         this.dimensions = [totalWidth, totalHeight]
         if (this.content.length === 0) {
@@ -238,8 +274,8 @@ class CodeBlock {
   }
 
   recomputeFromTop () {
+    let lastParent = this
     let nextParent = this.parent
-    let lastParent = this.parent
     while (nextParent) {
       lastParent = nextParent
       nextParent = nextParent.parent
@@ -248,11 +284,23 @@ class CodeBlock {
   }
 
   getWorldPosition () {
-    let nextParent = this.parent
-    const result = [this.position[0], this.position[1]]
+    let nextParent = this
+    const result = [0, 0]
     while (nextParent) {
       result[0] += nextParent.position[0]
       result[1] += nextParent.position[1]
+      /*
+      if (this.parent && state.mouse.heldCodeBlock) {
+        const myIndex = this.parent.content.findIndex(x => x === this)
+        if (myIndex >= state.mouse.heldCodeBlockPlaceholderIndex && this.parent === state.mouse.hoveredListBlock) {
+          if (this.parent.isVertical) {
+            result[1] -= state.mouse.heldCodeBlock.dimensions[1]
+          } else {
+            result[0] -= state.mouse.heldCodeBlock.dimensions[0]
+          }
+        }
+      }
+      */
       nextParent = nextParent.parent
     }
     return result
@@ -266,6 +314,13 @@ class CodeBlock {
       state.mouse.position[0] <= worldPosition[0] + this.dimensions[0] &&
       state.mouse.position[1] <= worldPosition[1] + this.dimensions[1]
     )
+  }
+
+  stringify () {
+    if (Array.isArray(this.content)) {
+      return '(' + this.content.map(x => x.stringify()).join(' ') + ')'
+    }
+    return this.content.toString()
   }
 
   remove () {
@@ -338,7 +393,7 @@ class CodeBlock {
 
       // Draw splice lines for slotting in held code block
       if (state.mouse.hoveredListBlock === this && state.mouse.heldCodeBlock && state.mouse.heldCodeBlock !== this) {
-        for (const splice of this.splices) {
+        for (const [i, splice] of this.splices.entries()) {
           if (this.isVertical) {
             ctx.save()
             ctx.translate(0, splice)
@@ -346,6 +401,9 @@ class CodeBlock {
             ctx.moveTo(4, 0)
             ctx.lineTo(this.dimensions[0] - 4, 0)
             ctx.strokeStyle = 'white'
+            if (i !== state.mouse.heldCodeBlockPlaceholderIndex) {
+              ctx.globalAlpha = 0.5
+            }
             ctx.stroke()
             ctx.restore()
           } else {
@@ -355,6 +413,9 @@ class CodeBlock {
             ctx.moveTo(0, 4)
             ctx.lineTo(0, this.dimensions[1] - 4)
             ctx.strokeStyle = 'white'
+            if (i !== state.mouse.heldCodeBlockPlaceholderIndex) {
+              ctx.globalAlpha = 0.5
+            }
             ctx.stroke()
             ctx.restore()
           }
