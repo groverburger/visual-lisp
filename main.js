@@ -41,8 +41,8 @@ function startup () {
     //onionSkin: true,
     camera,
     mouse,
-    world: {
-      'test': new CodeBlock([
+    world: [
+      new CodeBlock([
         new CodeBlock([
           new CodeBlock('layer 2 a'),
           new CodeBlock('layer 2 b'),
@@ -55,7 +55,7 @@ function startup () {
         new CodeBlock('layer 1 a'),
         new CodeBlock('layer 1 b')
       ]),
-      'fibb': new CodeBlock([
+      new CodeBlock([
         new CodeBlock('define'),
         new CodeBlock('fib'),
         new CodeBlock([new CodeBlock('n')]),
@@ -73,17 +73,17 @@ function startup () {
           ])
         ])
       ])
-    },
+    ],
     worldMetadata: new WeakMap(),
     //layers,
     undo: [],
     redo: []
   }
 
-  state.world.test.name = 'test'
-  state.world.test.recompute(canvas.getContext('2d'))
-  state.world.fibb.name = 'fibb'
-  state.world.fibb.recompute(canvas.getContext('2d'))
+  state.world.at(0).name = 'test'
+  state.world.at(0).recompute(canvas.getContext('2d'))
+  state.world.at(1).name = 'fibb'
+  state.world.at(1).recompute(canvas.getContext('2d'))
 
   serialize.commit()
   resize()
@@ -118,7 +118,7 @@ export function draw () {
   ctx.stroke()
 
   ctx.save()
-  for (const [name, codeBlock] of Object.entries(state.world)) {
+  for (const codeBlock of state.world) {
     codeBlock.draw(ctx)
   }
   ctx.restore()
@@ -332,8 +332,11 @@ class CodeBlock {
       this.recomputeFromTop()
       this.parent = null
     } else {
-      delete state.world[this.name]
+      state.world = state.world.filter(x => x !== this)
     }
+  }
+
+  environmentalize () {
   }
 
   draw () {
@@ -449,6 +452,11 @@ class CodeBlock {
       ctx.strokeStyle = 'white'
       ctx.stroke()
     }
+    if (state.mouse.editingCodeBlock === this && !state.mouse.heldCodeBlock) {
+      ctx.strokeStyle = 'white'
+      ctx.lineWidth = 2
+      ctx.stroke()
+    }
     ctx.fillStyle = 'white'
     if (typeof this.content === 'number') {
       ctx.fillStyle = 'cyan'
@@ -470,7 +478,7 @@ function resize () {
 window.addEventListener('resize', resize)
 window.addEventListener('mousemove', e => {
   state.mouse.update(e)
-  draw()
+  requestAnimationFrame(draw)
 })
 document.querySelector('#mainCanvas').addEventListener('mousedown', e => {
   state.mouse.leftButton = e.buttons & 1
@@ -558,11 +566,12 @@ window.addEventListener('keydown', e => {
   if (state.mouse.editingCodeBlock) {
     const key = e.key
     let textBuffer = state.mouse.editingCodeBlock.content.toString()
-    if (e.ctrlKey) {
-      textBuffer = ''
-    }
     if (key === 'Backspace') {
-      textBuffer = textBuffer.slice(0, -1)
+      if (e.ctrlKey) {
+        textBuffer = ''
+      } else {
+        textBuffer = textBuffer.slice(0, -1)
+      }
     } else if (key === 'Enter') {
       textBuffer += '\n'
     } else if (key.length === 1) {

@@ -152,25 +152,24 @@ export default class Mouse {
 
     let i = 1
     let name = this.heldCodeBlock.name
-    if (name === '') {
-      name = 'unnamed'
+    if (name !== '') {
+      let originalName = name
+      while (name in lips.env.__env__) {
+        name = `${originalName}_${i}`
+        i += 1
+      }
+      this.heldCodeBlock.name = name
+      const code = `(define ${name} ${this.heldCodeBlock.stringify()})`
+      try {
+        lips.exec(code).then(() => {
+          console.log(lips.env.__env__)
+        })
+      } catch (e) {
+        console.log(`Tried to drop ${name}`)
+        console.error(e)
+      }
     }
-    let originalName = name
-    while ((name in state.world) || (name in lips.env.__env__)) {
-      name = `${originalName}_${i}`
-      i += 1
-    }
-    this.heldCodeBlock.name = name
-    state.world[name] = this.heldCodeBlock
-    const code = `(define ${name} ${this.heldCodeBlock.stringify()})`
-    try {
-      lips.exec(code).then(() => {
-        console.log(lips.env.__env__)
-      })
-    } catch (e) {
-      console.log(`Tried to drop ${name}`)
-      console.error(e)
-    }
+    state.world.push(this.heldCodeBlock)
     this.heldCodeBlock = undefined
   }
 
@@ -207,6 +206,6 @@ function getAllCodeBlocks () {
       return
     }
   }
-  Object.values(state.world).forEach(recurse)
+  state.world.forEach(recurse)
   return result
 }
