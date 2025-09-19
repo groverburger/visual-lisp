@@ -17,6 +17,7 @@ export default class Mouse {
   hoveredCodeBlock = undefined
   hoveredListBlock = undefined
   lastHoveredListBlock = undefined
+  clickedCodeBlock = undefined
   heldCodeBlock = undefined
   heldCodeBlockOffset = [0, 0]
   heldCodeBlockPlaceholderIndex = -1
@@ -26,11 +27,6 @@ export default class Mouse {
   update (event) {
     this.screenPosition[0] = event.clientX
     this.screenPosition[1] = event.clientY
-    if (this.middleButton) {
-      state.camera.position[0] -= event.movementX / state.camera.zoom
-      state.camera.position[1] -= event.movementY / state.camera.zoom
-    }
-    this.lastPosition = [...this.position]
     this.position = this.getWorldPosition()
 
     this.hoveredCodeBlock = undefined
@@ -51,7 +47,14 @@ export default class Mouse {
     }
 
     if (this.leftClick && this.hoveredCodeBlock) {
-      this.heldCodeBlock = this.hoveredCodeBlock
+      this.clickedCodeBlock = this.hoveredCodeBlock
+    }
+    if (!this.hoveredCodeBlock) {
+      this.clickedCodeBlock = undefined
+    }
+
+    if (this.leftButton && this.clickedCodeBlock && !this.heldCodeBlock && event.type === 'mousemove') {
+      this.heldCodeBlock = this.clickedCodeBlock
       const heldCodeBlockWorldPosition = this.heldCodeBlock.getWorldPosition()
       this.heldCodeBlockOffset[0] = this.position[0] - heldCodeBlockWorldPosition[0]
       this.heldCodeBlockOffset[1] = this.position[1] - heldCodeBlockWorldPosition[1]
@@ -63,7 +66,7 @@ export default class Mouse {
       }
     }
 
-    if (this.rightClick && this.hoveredCodeBlock && Array.isArray(this.hoveredCodeBlock.content)) {
+    if (this.rightClick && this.hoveredCodeBlock) {
       const code = this.hoveredCodeBlock.stringify()
       try {
         lips.exec(code).then(x => {
@@ -75,10 +78,10 @@ export default class Mouse {
       console.log(code)
     }
 
-    if (this.rightClick) {
+    if (this.clickedCodeBlock && !this.editingCodeBlock) {
       this.editingCodeBlock = (
-        !Array.isArray(this.hoveredCodeBlock?.content)
-        ? this.hoveredCodeBlock
+        !Array.isArray(this.clickedCodeBlock.content)
+        ? this.clickedCodeBlock
         : undefined
       )
     }
@@ -134,6 +137,12 @@ export default class Mouse {
       this.hoveredListBlock.recomputeFromTop()
     }
     */
+
+    if (this.leftButton && !this.heldCodeBlock) {
+      state.camera.position[0] -= event.movementX / state.camera.zoom
+      state.camera.position[1] -= event.movementY / state.camera.zoom
+    }
+    this.lastPosition = [...this.position]
 
     this.leftClick = false
     this.rightClick = false

@@ -464,6 +464,11 @@ class CodeBlock {
     }
     ctx.textAlign = 'center'
     ctx.fillText(str, x, 24)
+    if (state.mouse.editingCodeBlock === this) {
+      const { width } = ctx.measureText(str)
+      ctx.textAlign = 'left'
+      ctx.fillText('|', x + width / 2 - 4, 22)
+    }
     ctx.restore()
   }
 }
