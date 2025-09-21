@@ -1,4 +1,5 @@
-import { state, draw } from './main.js'
+import { state, draw, animate, instantiateEnvironment } from './main.js'
+import CodeBlock from './codeblock.js'
 import * as vec2 from './vector2.js'
 import * as itx from './interface.js'
 import * as serialize from './serialize.js'
@@ -55,6 +56,7 @@ export default class Mouse {
 
     if (this.leftButton && this.clickedCodeBlock && !this.heldCodeBlock && event.type === 'mousemove') {
       this.heldCodeBlock = this.clickedCodeBlock
+      this.editingCodeBlock = undefined
       const heldCodeBlockWorldPosition = this.heldCodeBlock.getWorldPosition()
       this.heldCodeBlockOffset[0] = this.position[0] - heldCodeBlockWorldPosition[0]
       this.heldCodeBlockOffset[1] = this.position[1] - heldCodeBlockWorldPosition[1]
@@ -67,18 +69,38 @@ export default class Mouse {
     }
 
     if (this.rightClick && this.hoveredCodeBlock) {
-      const code = this.hoveredCodeBlock.stringify()
-      try {
-        lips.exec(code).then(x => {
-          console.log(x.toString())
-        })
-      } catch (e) {
-        console.error(e)
+      if (this.editingCodeBlock) {
+        const codeBlock = this.editingCodeBlock
+        this.editingCodeBlock = undefined
+        codeBlock.recomputeFromTop()
       }
-      console.log(code)
+      /*
+      const codeBlock = this.hoveredCodeBlock
+      const code = this.hoveredCodeBlock.stringify()
+      lips.exec(code).then(x => {
+        console.log(x.toString())
+        codeBlock.evalFrames = 60
+        animate(60)
+        console.log(lips.env.__env__)
+        const instantiatedEnvironment = instantiateEnvironment(lips.env.__env__)
+        for (const { name, value } of instantiatedEnvironment) {
+          const codeBlockExists = state.world.some(x => x.name === name)
+          if (codeBlockExists) { continue }
+          const codeBlock = new CodeBlock(value)
+          codeBlock.name = name
+          codeBlock.recomputeFromTop()
+          state.world.push(codeBlock)
+        }
+      }).catch(e => {
+        console.error(e)
+        codeBlock.evalFrames = -60
+        animate(60)
+      })
+      */
+      this.executeCodeBlock(this.hoveredCodeBlock)
     }
 
-    if (this.clickedCodeBlock && !this.editingCodeBlock) {
+    if (this.clickedCodeBlock && !this.editingCodeBlock && !this.heldCodeBlock) {
       this.editingCodeBlock = (
         !Array.isArray(this.clickedCodeBlock.content)
         ? this.clickedCodeBlock
@@ -148,8 +170,36 @@ export default class Mouse {
     this.rightClick = false
   }
 
+  executeCodeBlock (codeBlock) {
+    const code = codeBlock.stringify()
+    lips.exec(code).then(x => {
+      console.log(x.toString())
+      codeBlock.evalFrames = 60
+      animate(60)
+      console.log(lips.env.__env__)
+      const instantiatedEnvironment = instantiateEnvironment(lips.env.__env__)
+      for (const { name, value } of instantiatedEnvironment) {
+        const codeBlockIndex = state.world.findIndex(x => x.name === name)
+        let [x, y] = [0, 0]
+        if (codeBlockIndex !== -1) {
+          [x, y] = state.world[codeBlockIndex].position
+          state.world.splice(codeBlockIndex, 1)
+        }
+        const codeBlock = new CodeBlock(value)
+        codeBlock.position = [x, y]
+        codeBlock.name = name
+        codeBlock.recomputeFromTop()
+        state.world.push(codeBlock)
+      }
+    }).catch(e => {
+      console.error(e)
+      codeBlock.evalFrames = -60
+      animate(60)
+    })
+  }
+
   dropHeldCodeBlock () {
-    requestAnimationFrame(draw)
+    animate()
 
     if (this.heldCodeBlockPlaceholderIndex > -1) {
       this.hoveredListBlock.content.splice(this.heldCodeBlockPlaceholderIndex, 0, this.heldCodeBlock)
@@ -168,16 +218,9 @@ export default class Mouse {
         i += 1
       }
       this.heldCodeBlock.name = name
-      const code = `(define ${name} ${this.heldCodeBlock.stringify()})`
-      try {
-        lips.exec(code).then(() => {
-          console.log(lips.env.__env__)
-        })
-      } catch (e) {
-        console.log(`Tried to drop ${name}`)
-        console.error(e)
-      }
+      this.heldCodeBlock.updateInEnvironment()
     }
+
     state.world.push(this.heldCodeBlock)
     this.heldCodeBlock = undefined
   }
