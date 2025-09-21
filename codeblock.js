@@ -355,7 +355,11 @@ export default class CodeBlock {
       ctx.fillStyle = 'cyan'
       ctx.font = 'bold 24px Courier New'
     }
-    if (this.content[0] === '"' && this.content[this.content.length - 1] === '"') {
+    if (
+      this.content[0] === '"' &&
+      this.content[this.content.length - 1] === '"' &&
+      this.content.length > 1
+    ) {
       ctx.fillStyle = 'yellow'
       ctx.font = 'italic 24px Arial'
     }

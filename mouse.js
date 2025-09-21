@@ -222,6 +222,7 @@ export default class Mouse {
     }
 
     state.world.push(this.heldCodeBlock)
+    this.heldCodeBlock.recomputeFromTop()
     this.heldCodeBlock = undefined
   }
 
