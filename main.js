@@ -155,13 +155,15 @@ export function draw () {
   ctx.lineTo(0, r)
   ctx.stroke()
 
+  mouse.updateHeldCodeBlock()
+
   ctx.save()
   for (const codeBlock of state.world) {
     codeBlock.draw(ctx)
   }
   ctx.restore()
 
-  mouse.draw(ctx)
+  mouse.draw()
 
   ctx.restore()
 
@@ -182,7 +184,7 @@ export function draw () {
   }
 }
 
-export function instantiateEnvironment (prevWorld) {
+export function instantiateEnvironment () {
   const environment = lips.env.__env__
   const world = []
   let [x, y] = [0, 0]
@@ -219,10 +221,11 @@ export function instantiateEnvironment (prevWorld) {
       return expression
     }
     if (!isConsCell(expression)) {
+      if ('string' in expression) {
+        return `"${expression.string}"`
+      }
       return instantiateExpression(
-        expression.__value__ ??
-        expression.__name__ ??
-        expression.__string__
+        expression.__value__ ?? expression.__name__
       )
     }
     const listResult = []
@@ -301,9 +304,13 @@ document.querySelector('#mainCanvas').addEventListener('wheel', e => {
 
   mouse.screenPosition = [e.clientX, e.clientY]
   const lastPosition = mouse.getWorldPosition()
-  const scalar = 1.1
   if (e.deltaY !== 0) {
-    camera.zoom *= 1 - e.deltaY / 300
+    const delta = e.deltaY / 400
+    let coeff = 1 - delta
+    if (Math.abs(delta) > 0.15) {
+      coeff = delta < 0 ? 1.15 : 1 / 1.15
+    }
+    camera.zoom *= coeff
     camera.zoom = Math.max(camera.zoom, 0.1)
     camera.zoom = Math.min(camera.zoom, 2)
     e.preventDefault()

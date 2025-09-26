@@ -199,7 +199,7 @@ export default class Mouse {
   }
 
   dropHeldCodeBlock () {
-    animate()
+    //animate()
 
     if (this.heldCodeBlockPlaceholderIndex > -1) {
       this.hoveredListBlock.content.splice(this.heldCodeBlockPlaceholderIndex, 0, this.heldCodeBlock)
@@ -223,18 +223,21 @@ export default class Mouse {
 
     state.world.push(this.heldCodeBlock)
     this.heldCodeBlock.recomputeFromTop()
+    this.hoveredCodeBlock = this.heldCodeBlock
     this.heldCodeBlock = undefined
   }
 
-  draw (ctx) {
-    if (this.heldCodeBlock) {
-      if (this.leftButton) {
-        this.heldCodeBlock.position[0] = this.position[0] - this.heldCodeBlockOffset[0]
-        this.heldCodeBlock.position[1] = this.position[1] - this.heldCodeBlockOffset[1]
-        this.heldCodeBlock.draw()
-      } else {
-        this.dropHeldCodeBlock()
-      }
+  updateHeldCodeBlock () {
+    if (this.heldCodeBlock && !this.leftButton) {
+      this.dropHeldCodeBlock()
+    }
+  }
+
+  draw () {
+    if (this.heldCodeBlock && this.leftButton) {
+      this.heldCodeBlock.position[0] = this.position[0] - this.heldCodeBlockOffset[0]
+      this.heldCodeBlock.position[1] = this.position[1] - this.heldCodeBlockOffset[1]
+      this.heldCodeBlock.draw()
     }
   }
 
