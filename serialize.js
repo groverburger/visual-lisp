@@ -1,62 +1,53 @@
 import { state } from './main.js'
+import CodeBlock from './codeblock.js'
 import Grid from './grid.js'
 import Thing from './thing.js'
 
-/*
-export function serializeLayer (layer) {
-  return {
-    grid: layer.grid.getData(),
-    things: layer.things.map(({ name, position, data }) => ({
-      name, position, data
-    }))
-  }
+export function serializeEnvironment () {
+  return (
+    state.world
+    .filter(codeBlock => (
+      codeBlock.name !== '' &&
+      !codeBlock.name.startsWith('__') &&
+      !codeBlock.name.endsWith('__')
+    ))
+    .map(codeBlock => `(define ${codeBlock.name} ${codeBlock.stringify()})`)
+  )
 }
-
-export function deserializeLayer (index, layerString) {
-  const { grid, things } = layerString
-
-  state.layers[index] = {
-    grid: new Grid(),
-    things: []
-  }
-  const layer = state.layers[index]
-
-  // load the grid
-  for (const [chunkCoord, chunk] of Object.entries(grid)) {
-    const [cx, cy] = chunkCoord.split(',').map(Number)
-    for (let i = 0; i < chunk.length; i += 1) {
-      const x = (i % 64) + cx
-      const y = Math.floor(i / 64) + cy
-      layer.grid.set(x, y, chunk[i])
-    }
-  }
-
-  // load things
-  for (const { name, position, data } of things) {
-    const thing = new Thing(position)
-    thing.name = name
-    thing.data = data
-    layer.things.push(thing)
-  }
-}
-*/
 
 export function serialize () {
   const project = {
     version: 1,
-    layers: []
+    environment: serializeEnvironment(),
+    world: state.world.map(codeBlock => ({
+      position: codeBlock.position,
+      name: codeBlock.name,
+      content: codeBlock.listify()
+    }))
   }
-  //for (const layer of state.layers) {
-    //project.layers.push(serializeLayer(layer))
-  //}
   return JSON.stringify(project)
 }
 
 export function deserialize (projectString) {
-  const { layers } = JSON.parse(projectString)
-  for (const [i, layer] of Object.entries(layers)) {
-    deserializeLayer(i, layer)
+  const { environment, world } = JSON.parse(projectString)
+  const result = []
+  for (const { position, name, content } of world) {
+    const codeBlock = new CodeBlock(content)
+    codeBlock.position = position
+    codeBlock.name = name
+    codeBlock.recomputeFromTop()
+    result.push(codeBlock)
   }
+  state.world = result
+
+  for (const key in lips.env.__env__) {
+    if (Object.prototype.hasOwnProperty.call(lips.env.__env__, key)) {
+      if (!key.startsWith('__') || !key.endsWith('__')) {
+        delete lips.env.__env__[key]
+      }
+    }
+  }
+  environment.forEach(definition => lips.exec(definition))
 }
 
 /*

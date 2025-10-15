@@ -63,7 +63,7 @@ export default class Mouse {
       this.hoveredCodeBlock.remove()
       this.hoveredCodeBlock = undefined
 
-      if (this.heldCodeBlock.name in lips.env.__env__) {
+      if ('__env__' in lips.env && (this.heldCodeBlock.name in lips.env.__env__)) {
         delete lips.env.__env__[this.heldCodeBlock.name]
       }
     }
@@ -173,10 +173,10 @@ export default class Mouse {
   executeCodeBlock (codeBlock) {
     const code = codeBlock.stringify()
     lips.exec(code).then(x => {
-      console.log(x.toString())
+      //console.log(x.toString())
       codeBlock.evalFrames = 60
       animate(60)
-      console.log(lips.env.__env__)
+      //console.log(lips.env.__env__)
       const instantiatedEnvironment = instantiateEnvironment(lips.env.__env__)
       for (const { name, value } of instantiatedEnvironment) {
         const codeBlockIndex = state.world.findIndex(x => x.name === name)
@@ -191,6 +191,7 @@ export default class Mouse {
         codeBlock.recomputeFromTop()
         state.world.push(codeBlock)
       }
+      serialize.commit()
     }).catch(e => {
       console.error(e)
       codeBlock.evalFrames = -60
@@ -200,6 +201,7 @@ export default class Mouse {
 
   dropHeldCodeBlock () {
     //animate()
+    console.log(lips.env)
 
     if (this.heldCodeBlockPlaceholderIndex > -1) {
       this.hoveredListBlock.content.splice(this.heldCodeBlockPlaceholderIndex, 0, this.heldCodeBlock)
@@ -222,6 +224,7 @@ export default class Mouse {
     }
 
     state.world.push(this.heldCodeBlock)
+    serialize.commit()
     this.heldCodeBlock.recomputeFromTop()
     this.hoveredCodeBlock = this.heldCodeBlock
     this.heldCodeBlock = undefined

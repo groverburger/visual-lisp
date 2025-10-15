@@ -108,10 +108,6 @@ function startup () {
   state.world.forEach(x => x.recomputeFromTop())
   //state.world.at(1).name = 'fibb'
 
-  for (const codeBlock of state.world) {
-    codeBlock.recomputeFromTop()
-  }
-
   serialize.commit()
   resize()
 }

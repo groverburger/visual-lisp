@@ -189,6 +189,13 @@ export default class CodeBlock {
     return this.content.toString()
   }
 
+  listify () {
+    if (Array.isArray(this.content)) {
+      return this.content.map(x => x instanceof CodeBlock ? x.listify() : x)
+    }
+    return this.content
+  }
+
   updateInEnvironment () {
     if (this.parent) {
       this.parent.updateInEnvironment()
